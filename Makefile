@@ -16,6 +16,10 @@ ARCHIVES=$(PWD)/archives
 # Max jobs for sub-builds
 MAX_JOBS= 12
 
+BLDENV= usr/src/tools/scripts/bldenv
+ENV_SUFFIX= -omnios
+GMPINCDIR= /usr/include/gmp
+
 # XXXARM: We can't .KEEP_STATE because something confuses everything
 # (directory changes in rules?) and it gets bogus dependencies and always
 # rebuilds everything (which, to be fair, often happens anyway).
@@ -102,7 +106,7 @@ $(STAMPS)/binutils-gdb-stamp:
 	    --target=aarch64-solaris2.11 \
 	    --prefix=$(CROSS) \
 	    --enable-initfini-array && \
-	gmake -j $(MAX_JOBS) && \
+	gmake -j $(MAX_JOBS) CPPFLAGS+='-I$(GMPINCDIR)' && \
 	gmake -j $(MAX_JOBS) install) && \
 	touch $@
 
@@ -110,7 +114,7 @@ $(STAMPS)/binutils-gdb-stamp:
 sgs: $(STAMPS)/sgs-stamp
 $(STAMPS)/sgs-stamp: 
 	(cd illumos-gate && \
-	 bldenv ../env/aarch64 'cd usr/src/; make -j $(MAX_JOBS) bldtools sgs' && \
+	 $(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/; make -j $(MAX_JOBS) bldtools sgs' && \
 	 rsync -a usr/src/tools/proto/root_i386-nd/ $(CROSS)/ && \
 	 mkdir -p $(SYSROOT)/usr/include && \
 	 rsync -a proto/root_aarch64/usr/include/ $(SYSROOT)/usr/include/) && \
@@ -121,6 +125,7 @@ gcc: $(STAMPS)/gcc-stamp
 $(STAMPS)/gcc-stamp: sgs binutils-gdb
 	(cd $(BUILDS)/gcc; \
 	../../gcc/configure \
+	    --with-gmp-include=$(GMPINCDIR) \
 	    --target=aarch64-solaris2.11 \
 	    --with-abi=lp64 \
 	    --prefix=$(CROSS) \
@@ -153,7 +158,7 @@ $(STAMPS)/gcc-stamp: sgs binutils-gdb
 crt: $(STAMPS)/crt-stamp
 $(STAMPS)/crt-stamp: sgs gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/crt; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/crt; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib/aarch64 && \
 	cp proto/root_aarch64/usr/lib/*.o $(SYSROOT)/usr/lib/) && \
 	touch $@
@@ -161,27 +166,31 @@ $(STAMPS)/crt-stamp: sgs gcc
 libc: $(STAMPS)/libc-stamp
 $(STAMPS)/libc-stamp: ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libc; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libc; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
+	rm -f $(SYSROOT)/usr/lib/libc.* \
 	cp -a proto/root_aarch64/usr/lib/libc* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
+	rm -f $(SYSROOT)/lib/libc.* \
 	cp -a proto/root_aarch64/lib/libc* $(SYSROOT)/lib/) && \
 	touch $@
 
 libm: $(STAMPS)/libm-stamp
 $(STAMPS)/libm-stamp: ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libm_aarch64; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libm_aarch64; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
+	rm -f $(SYSROOT)/usr/lib/libm.* \
 	cp -a proto/root_aarch64/usr/lib/libm.* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
+	rm -f $(SYSROOT)/lib/libm.* \
 	cp -a proto/root_aarch64/lib/libm.* $(SYSROOT)/lib/) && \
 	touch $@
 
 libsocket: $(STAMPS)/libsocket-stamp
 $(STAMPS)/libsocket-stamp: libnsl ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libsocket; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libsocket; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/libsocket.* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
@@ -191,7 +200,7 @@ $(STAMPS)/libsocket-stamp: libnsl ssp_ns gcc
 libkstat: $(STAMPS)/libkstat-stamp
 $(STAMPS)/libkstat-stamp: libc ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libkstat; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libkstat; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/libkstat.* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
@@ -201,7 +210,7 @@ $(STAMPS)/libkstat-stamp: libc ssp_ns gcc
 libnsl: $(STAMPS)/libnsl-stamp
 $(STAMPS)/libnsl-stamp: libmp libmd libc ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libnsl; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libnsl; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/libnsl.* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
@@ -211,7 +220,7 @@ $(STAMPS)/libnsl-stamp: libmp libmd libc ssp_ns gcc
 libmd: $(STAMPS)/libmd-stamp
 $(STAMPS)/libmd-stamp: libc ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libmd; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libmd; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/libmd.* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
@@ -221,7 +230,7 @@ $(STAMPS)/libmd-stamp: libc ssp_ns gcc
 libmp: $(STAMPS)/libmp-stamp
 $(STAMPS)/libmp-stamp: libc ssp_ns gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libmp; make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libmp; make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/libmp.* $(SYSROOT)/usr/lib/ && \
 	mkdir -p $(SYSROOT)/lib && \
@@ -276,7 +285,7 @@ $(STAMPS)/idnkit-stamp: libc ssp_ns gcc
 ssp_ns: $(STAMPS)/ssp_ns-stamp
 $(STAMPS)/ssp_ns-stamp: gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/ssp_ns && make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/ssp_ns && make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/libssp* $(SYSROOT)/usr/lib/) && \
 	touch $@
@@ -284,9 +293,9 @@ $(STAMPS)/ssp_ns-stamp: gcc
 libc-filters: $(STAMPS)/libc-filters-stamp
 $(STAMPS)/libc-filters-stamp: libc gcc
 	(cd illumos-gate && \
-	bldenv ../env/aarch64 'cd usr/src/lib/librt && make install' && \
-	bldenv ../env/aarch64 'cd usr/src/cmd/sgs/libdl && make install' && \
-	bldenv ../env/aarch64 'cd usr/src/lib/libpthread && make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/librt && make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/cmd/sgs/libdl && make install' && \
+	$(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/lib/libpthread && make install' && \
 	mkdir -p $(SYSROOT)/usr/lib && \
 	cp -a proto/root_aarch64/usr/lib/librt.* $(SYSROOT)/usr/lib/ && \
 	cp -a proto/root_aarch64/usr/lib/libdl.* $(SYSROOT)/usr/lib/ && \
@@ -380,14 +389,14 @@ $(STAMPS)/xorriso-stamp: libc libc-filters ssp_ns gcc
 illumos: $(STAMPS)/illumos-stamp
 $(STAMPS)/illumos-stamp: setup
 	(cd illumos-gate && \
-	 bldenv ../env/aarch64 'cd usr/src; make -j $(MAX_JOBS) setup' && \
-	 bldenv ../env/aarch64 'cd usr/src; make -j $(MAX_JOBS) install') && \
+	 $(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src; make -j $(MAX_JOBS) setup' && \
+	 $(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src; make -j $(MAX_JOBS) install') && \
 	touch $@
 
 illumos-pkgs: $(STAMPS)/illumos-pkgs
 $(STAMPS)/illumos-pkgs:
 	(cd illumos-gate && \
-	 bldenv ../env/aarch64 'cd usr/src/pkg; make -j $(MAX_JOBS) install') && \
+	 $(BLDENV) ../env/aarch64$(ENV_SUFFIX) 'cd usr/src/pkg; make -j $(MAX_JOBS) install') && \
 	touch $@
 
 disk: illumos-pkgs
